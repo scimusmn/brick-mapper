@@ -1,0 +1,16 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+
+    color:#acaaad;
+    font: 13px Helvetica, Arial;
+    background: #000;
+
+    width: 1920px;
+    height: 1080px;
+
+}
