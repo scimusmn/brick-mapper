@@ -108,7 +108,13 @@ function BrickMapper(stageDiv) {
 
   function inputUp() {
 
-    // clearCanvas();
+    // We only allow drawing from
+    // upper left to lower right
+    if (drawRect.w < 0 || drawRect.h < 0) {
+      drawRect.w = drawRect.h = 0;
+      console.log('Must draw from upper left to lower right.');
+      clearCanvas();
+    }
 
   }
 
@@ -197,7 +203,7 @@ function BrickMapper(stageDiv) {
     let iY = guideRect.y;
     let tileRect = {x:guideRect.x, y:guideRect.y, w:guideRect.w, h:guideRect.h};
 
-    // From drawRect, tile left...
+    // From guideRect, tile left...
     while (iX > stageLeft - guideRect.w) {
 
       // Move one tile over
@@ -211,7 +217,7 @@ function BrickMapper(stageDiv) {
 
     }
 
-    // From drawRect, tile right...
+    // From guideRect, tile right...
     iX = guideRect.x;
 
     while (iX < stageRight + guideRect.w) {
