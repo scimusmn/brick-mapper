@@ -11,6 +11,7 @@ This tool assumes the projection has been keystoned to display a unwarped rectan
 This tool assumes two things about the pattern you’re overlaying. 1.) Tile size is consistent. 2.) The tiling offset is only row-based, not column-based (97% of brick patterns follow this rule).
 
 ## Improvements
+- Currently an amalgamation of various ES5 and ES6 snippets. Refactor for ES6 standards.
 - Ability to handle patterns with different sized tiles.
 - Ability to knock out rectangular areas for windows and other obstructions.
 

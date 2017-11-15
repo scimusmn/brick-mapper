@@ -16,6 +16,9 @@ function BrickMapper(stageDiv) {
   var gutterY = 0;
   var rowOffset = 0;
 
+  var SAVE_KEY = 'brick-mapper-ls';
+  var isLocked = false;
+
   // Setup canvas drawing
   $(stageDiv).append('<canvas id="brick-mapper-canvas"></canvas>');
   var canvas = $('#brick-mapper-canvas');
@@ -23,9 +26,14 @@ function BrickMapper(stageDiv) {
   $('#brick-mapper-canvas').attr('width', stageWidth);
   $('#brick-mapper-canvas').attr('height', stageHeight);
 
-  $(stageDiv).append('<div id="brick-mapper-settings" style="position:fixed; background-color: rgba(255,255,255,0.2); padding: 26px; bottom:0%;"><datalist id="offset-detents"><option value="25"><option value="33.33"><option value="50"><option value="66.66"><option value="75"></datalist><form><input id="rowOffsetInput" type="range" min="0" max="100" step="0.01" value="0" /><span> Row offset: </span><span id="rowOffset">0</span><br/><input id="gutterXInput" type="range" min="0" max="30" step="0.1" value="0" /><span> Gutter X: </span><span id="gutter-x">0</span><br/><input id="gutterYInput" type="range" min="0" max="30" step="0.1" value="0" /><span> Gutter Y: </span><span id="gutter-y">0</span></form></div>');
+  $(stageDiv).append('<div id="brick-mapper-settings" style="position:fixed; background-color: rgba(255,255,255,0.2); padding: 26px; bottom:0%;"><p id="lockbtn">lock</p><br/><datalist id="offset-detents"><option value="25"><option value="33.33"><option value="50"><option value="66.66"><option value="75"></datalist><form><input id="rowOffsetInput" type="range" min="0" max="100" step="0.01" value="0" /><span> Row offset: </span><span id="rowOffset">0</span><br/><input id="gutterXInput" type="range" min="0" max="30" step="0.1" value="0" /><span> Gutter X: </span><span id="gutter-x">0</span><br/><input id="gutterYInput" type="range" min="0" max="30" step="0.1" value="0" /><span> Gutter Y: </span><span id="gutter-y">0</span></form></div>');
+
+  var settings = $('#brick-mapper-settings');
 
   this.enable = function() {
+
+    $(canvas).show();
+    $(settings).show();
 
     $(canvas)[0].addEventListener('mousedown', mousedown, false);
     $(canvas)[0].addEventListener('mousemove', mousemove, false);
@@ -49,6 +57,18 @@ function BrickMapper(stageDiv) {
       drawBrickPattern(drawRect);
     };
 
+    $('#lockbtn').click(() => {
+      console.log($('#lockbtn').text());
+
+      if ($('#lockbtn').text() == 'lock') {
+        $('#lockbtn').text('unlock');
+        isLocked = true;
+      } else {
+        $('#lockbtn').text('lock');
+        isLocked = false;
+      }
+    });
+
     $('#rowOffsetInput')[0].onchange = changeComplete;
     $('#gutterXInput')[0].onchange = changeComplete;
     $('#gutterYInput')[0].onchange = changeComplete;
@@ -57,13 +77,21 @@ function BrickMapper(stageDiv) {
 
   this.disable = function() {
 
-    $(canvas)[0].removeEventListener('mousedown', mousedown, false);
-    $(canvas)[0].removeEventListener('mousemove', mousemove, false);
-    $(canvas)[0].removeEventListener('mouseup', mouseup, false);
+    // $(canvas)[0].removeEventListener('mousedown', mousedown, false);
+    // $(canvas)[0].removeEventListener('mousemove', mousemove, false);
+    // $(canvas)[0].removeEventListener('mouseup', mouseup, false);
 
-    // TODO remove slider listeners
+    $(canvas).hide();
+    $(settings).hide();
 
   };
+
+  function save() {
+    const saveObj = {
+
+    };
+    localStorage.setItem(SAVE_KEY, saveObj);
+  }
 
   function mousedown(event) {
 
