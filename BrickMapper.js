@@ -11,13 +11,18 @@ function BrickMapper(stageDiv) {
   var shortestSide = Math.min(stageWidth, stageHeight);
   var mouseIsDown = false;
 
-  var drawRect = {x:0,y:0,w:0,h:0};
-  var gutterX = 0;
-  var gutterY = 0;
+  var brickWidth = 0;
+  var brickHeight = 0;
+  var intervalX = 0;
+  var intervalY = 0;
   var rowOffset = 0;
 
+  var colorFlip = -1;
+
   var SAVE_KEY = 'brick-mapper-ls';
-  var isLocked = false;
+
+  var brickPoints = [];
+  var calcPoints = [];
 
   // Setup canvas drawing
   $(stageDiv).append('<canvas id="brick-mapper-canvas"></canvas>');
@@ -26,7 +31,7 @@ function BrickMapper(stageDiv) {
   $('#brick-mapper-canvas').attr('width', stageWidth);
   $('#brick-mapper-canvas').attr('height', stageHeight);
 
-  $(stageDiv).append('<div id="brick-mapper-settings" style="position:fixed; background-color: rgba(255,255,255,0.2); padding: 26px; bottom:0%;"><p id="lockbtn">lock</p><br/><datalist id="offset-detents"><option value="25"><option value="33.33"><option value="50"><option value="66.66"><option value="75"></datalist><form><input id="rowOffsetInput" type="range" min="0" max="100" step="0.01" value="0" /><span> Row offset: </span><span id="rowOffset">0</span><br/><input id="gutterXInput" type="range" min="0" max="30" step="0.1" value="0" /><span> Gutter X: </span><span id="gutter-x">0</span><br/><input id="gutterYInput" type="range" min="0" max="30" step="0.1" value="0" /><span> Gutter Y: </span><span id="gutter-y">0</span></form></div>');
+  $(stageDiv).append('<div id="brick-mapper-settings" style="position:fixed; background-color: rgba(255,255,255,0.2); padding: 26px; bottom:0%;"><span id="savebtn">save</span>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp<span id="calcbtn">calc</span><br/><br/><datalist id="offset-detents"><option value="25"><option value="33.33"><option value="50"><option value="66.66"><option value="75"></datalist><form><input id="rowOffsetInput" type="range" min="0" max="100" step="0.01" value="0" /><span> Row offset: </span><span id="rowOffset">0</span><br/><input id="brickWidth" type="range" min="5" max="100" step="0.1" value="0" /><span> Brick Width: </span><span id="brickWidthVal">0</span><br/><input id="brickHeight" type="range" min="5" max="100" step="0.1" value="0" /><span> Brick Height: </span><span id="brickHeightVal">0</span></form></div>');
 
   var settings = $('#brick-mapper-settings');
 
@@ -40,38 +45,69 @@ function BrickMapper(stageDiv) {
     $(canvas)[0].addEventListener('mouseup', mouseup, false);
 
     $('#rowOffsetInput')[0].oninput = function(evt) {
+
       document.getElementById('rowOffset').innerHTML = evt.target.value + '%';
       rowOffset = parseFloat(evt.target.value) * 0.01;
-      drawBrickPattern(drawRect);
+      console.log('row', rowOffset);
+      drawUI();
+
     };
 
-    $('#gutterXInput')[0].oninput = function(evt) {
-      document.getElementById('gutter-x').innerHTML = evt.target.value;
-      gutterX = parseFloat(evt.target.value);
-      drawBrickPattern(drawRect);
+    $('#brickWidth')[0].oninput = function(evt) {
+      document.getElementById('brickWidthVal').innerHTML = evt.target.value;
+      brickWidth = parseFloat(evt.target.value);
+      drawUI();
     };
 
-    $('#gutterYInput')[0].oninput = function(evt) {
-      document.getElementById('gutter-y').innerHTML = evt.target.value;
-      gutterY = parseFloat(evt.target.value);
-      drawBrickPattern(drawRect);
+    $('#brickHeight')[0].oninput = function(evt) {
+      document.getElementById('brickHeightVal').innerHTML = evt.target.value;
+      brickHeight = parseFloat(evt.target.value);
+      drawUI();
     };
 
-    $('#lockbtn').click(() => {
-      console.log($('#lockbtn').text());
+    $('#savebtn').click(() => {
 
-      if ($('#lockbtn').text() == 'lock') {
-        $('#lockbtn').text('unlock');
-        isLocked = true;
-      } else {
-        $('#lockbtn').text('lock');
-        isLocked = false;
-      }
+      console.log('Save btn clicked');
+
     });
 
-    $('#rowOffsetInput')[0].onchange = changeComplete;
-    $('#gutterXInput')[0].onchange = changeComplete;
-    $('#gutterYInput')[0].onchange = changeComplete;
+    $('#calcbtn').click(() => {
+
+      console.log('Calc btn clicked');
+
+      // We assume the coordinates
+      // of the first and last
+      // brick are perfect, then find
+      // the right intervals by averaging
+      // the rest of the brick points.
+
+      calcPoints = [];
+
+      var first = brickPoints[0];
+      var last = brickPoints[brickPoints.length - 1];
+
+      intervalX = (last.x - first.x) / (brickPoints.length - 1);
+      intervalY = (last.y - first.y) / (brickPoints.length - 1);
+
+      for (var i = 0; i < brickPoints.length; i++) {
+
+        var bp = brickPoints[i];
+        var cx = first.x + (intervalX * i);
+        var cy = first.y + (intervalY * i);
+
+        calcPoints.push({x:cx, y:cy});
+
+      }
+
+      console.log(intervalX, intervalY);
+      console.log(calcPoints);
+
+      drawUI(0, 0);
+
+    });
+
+    $('#brickWidth')[0].onchange = changeComplete;
+    $('#brickHeight')[0].onchange = changeComplete;
 
   };
 
@@ -87,10 +123,14 @@ function BrickMapper(stageDiv) {
   };
 
   function save() {
+    // TODO - save layout.
+    // overwrite previous data.
     const saveObj = {
 
     };
+
     localStorage.setItem(SAVE_KEY, saveObj);
+
   }
 
   function mousedown(event) {
@@ -102,9 +142,7 @@ function BrickMapper(stageDiv) {
 
   function mousemove(event) {
 
-    if (mouseIsDown === true) {
-      inputMove(event.pageX, event.pageY);
-    }
+    drawUI(event.pageX, event.pageY);
 
   }
 
@@ -117,111 +155,101 @@ function BrickMapper(stageDiv) {
 
   function inputStart(inputX, inputY) {
 
-    drawRect.x = drawRect.w = inputX;
-    drawRect.y = drawRect.h = inputY;
-    clearCanvas();
+    addBrickPoint(inputX, inputY);
 
   }
 
   function inputMove(inputX, inputY) {
 
-    // Draw rect
-    drawRect.w = inputX - drawRect.x;
-    drawRect.h = inputY - drawRect.y;
-
-    // Draw UI
-    drawMasterRect(drawRect);
-
   }
 
   function inputUp() {
-
-    // We only allow drawing from
-    // upper left to lower right
-    if (drawRect.w < 0 || drawRect.h < 0) {
-      drawRect.w = drawRect.h = 0;
-      console.log('Must draw from upper left to lower right.');
-      clearCanvas();
-    }
 
   }
 
   function changeComplete() {
     console.log('Save values and redraw grid.');
-    drawBrickPattern(drawRect);
+    drawBrickPattern();
   }
 
-  // Canvas drawing
-  function drawMasterRect(drawRect) {
+  // Add brick
+  function addBrickPoint(x,y) {
+
+    brickPoints.push({x:x,y:y});
+
+    drawUI(x, y);
+
+  }
+
+  function drawUI(mouseX, mouseY) {
 
     clearCanvas();
 
-    // Currently drawn rect.
-    ctx.rect(drawRect.x, drawRect.y, drawRect.w, drawRect.h);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fill();
+    drawBrickPattern();
 
-    // Ring around origin
+    // Red crosshairs for easy cursor tracking
     ctx.beginPath();
-    ctx.arc(drawRect.x, drawRect.y, 4, 0, 2 * Math.PI);
-    ctx.fillStyle = 'red';
-    ctx.strokeStyle = 'red';
-    ctx.fill();
+    ctx.strokeStyle = '#FD3E43';
+    ctx.moveTo(0, mouseY);
+    ctx.lineTo(stageWidth, mouseY);
+    ctx.moveTo(mouseX, 0);
+    ctx.lineTo(mouseX, stageHeight);
     ctx.stroke();
+
+    for (var i = 0; i < brickPoints.length; i++) {
+      var bp = brickPoints[i];
+
+      // Draw all brick points
+      ctx.beginPath();
+      ctx.arc(bp.x, bp.y, 4, 0, 2 * Math.PI);
+      ctx.fillStyle = 'white';
+      ctx.strokeStyle = 'white';
+      ctx.fill();
+      ctx.stroke();
+
+    }
+
+    for (var i = 0; i < calcPoints.length; i++) {
+      var cp = calcPoints[i];
+
+      // Draw all calculated points
+      ctx.beginPath();
+      ctx.arc(cp.x, cp.y, 3, 0, 2 * Math.PI);
+      ctx.fillStyle = '#FFFC55';
+      ctx.strokeStyle = '#FFFC55';
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw connection to origin
+      ctx.beginPath();
+      ctx.strokeStyle = 'gray';
+      ctx.moveTo(cp.x, cp.y);
+      ctx.lineTo(brickPoints[i].x, brickPoints[i].y);
+      ctx.stroke();
+
+    }
 
   }
 
   // Calculate and redraw brick pattern.
-  function drawBrickPattern(mainRect) {
+  function drawBrickPattern() {
 
-    if (mainRect.w == 0 || mainRect.h == 0) return;
+    if (brickWidth == 0 || brickHeight == 0 || calcPoints.length < 3) return;
 
-    clearCanvas();
-    drawMasterRect(mainRect);
+    for (var i = 0; i < calcPoints.length; i++) {
 
-    // Using current variables, draw bricks
-    // in every direction until outside bounds.
-    let iX = mainRect.x;
-    let iY = mainRect.y;
+      var cp = calcPoints[i];
+      var bRect = {x:cp.x - (brickWidth / 2), y:cp.y - (brickHeight / 2), w:brickWidth, h:brickHeight};
+      drawSingleTile(bRect, true);
 
-    const pixelRowOffset = rowOffset * (1 * (mainRect.w + gutterX));
-
-    // Create "this" row
-    tileRow({x:iX, y:iY, w:mainRect.w, h:mainRect.h});
-
-    // Create tile rows, going upward..
-    while (iY > stageTop - mainRect.h) {
-
-      // Move one tile up
-      iY -= mainRect.h;
-
-      // Add gutter
-      iY -= gutterY;
-
-      // Offset row's X position
-      iX += pixelRowOffset;
-
-      tileRow({x:iX, y:iY, w:mainRect.w, h:mainRect.h});
+      // Finish row this tile occupies
+      tileRow(bRect);
 
     }
 
-    // Create tile rows, going downward..
-    iY = mainRect.y;
-    iX = mainRect.x;
-    while (iY < stageBottom + mainRect.h) {
+    // TEMP
+    return;
 
-      // Move one tile up
-      iY += mainRect.h;
-
-      // Add gutter
-      iY += gutterY;
-
-      // Offset row's X position
-      iX -= pixelRowOffset;
-
-      tileRow({x:iX, y:iY, w:mainRect.w, h:mainRect.h});
-
-    }
 
   }
 
@@ -237,9 +265,6 @@ function BrickMapper(stageDiv) {
       // Move one tile over
       iX -= guideRect.w;
 
-      // Add gutter
-      iX -= gutterX;
-
       tileRect = {x:iX, y:iY, w:guideRect.w, h:guideRect.h};
       drawSingleTile(tileRect);
 
@@ -253,9 +278,6 @@ function BrickMapper(stageDiv) {
       // Move one tile over
       iX += guideRect.w;
 
-      // Add gutter
-      iX += gutterX;
-
       tileRect = {x:iX, y:iY, w:guideRect.w, h:guideRect.h};
       drawSingleTile(tileRect);
 
@@ -263,11 +285,19 @@ function BrickMapper(stageDiv) {
 
   }
 
-  function drawSingleTile(rect) {
+  function drawSingleTile(rect, highlight) {
+
+    var highlight = highlight | false;
 
     // Currently drawn rect.
+    ctx.beginPath();
     ctx.rect(rect.x, rect.y, rect.w, rect.h);
-    ctx.fillStyle = 'rgba(100,100,255,0.6)';
+    ctx.fillStyle = '#31A08B';
+
+    if (highlight == true) {
+      ctx.fillStyle = '#FD3E43';
+    }
+
     ctx.fill();
 
     // Draw cross strokes
@@ -278,6 +308,7 @@ function BrickMapper(stageDiv) {
     ctx.moveTo(rect.x + rect.w, rect.y);
     ctx.lineTo(rect.x, rect.y + rect.h);
     ctx.stroke();
+    ctx.closePath();
 
   }
 
