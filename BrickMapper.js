@@ -487,17 +487,13 @@ function BrickMapper(stageDiv) {
     let rightmostBrick = {x:-999999};
 
     // Check for bounds bricks
-    if (iX < leftmostBrick.x) {
-      leftmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
-    }
+    // if (iX < leftmostBrick.x) {
+    //   leftmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
+    // }
 
-    if (iX > rightmostBrick.x) {
-      rightmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
-    }
-
-    // First, this tile
-    // (commented out because uneccessary)
-    // rowArray.push(drawSingleTile(iX, iY, isOdd(counter)));
+    // if (iX > rightmostBrick.x) {
+    //   rightmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
+    // }
 
     // From guideRect, tile left...
     while ((iX + (brickWidth / 2)) > stageLeft) {
@@ -582,36 +578,44 @@ function BrickMapper(stageDiv) {
 
   function drawBoundsBricks() {
     clearCanvas();
-    console.log('--- drawBoundsBricks ---');
-    console.log('-- top', boundsBricks.top.length);
-    for (var i = 0; i < boundsBricks.top.length; i++) {
-      var b = boundsBricks.top[i];
+
+    /*    for (var i = 0; i < boundsBricks.top.length; i++) {
+          var b = boundsBricks.top[i];
+          drawSingleTile(b.x, b.y);
+        }
+
+        console.log('-- right', boundsBricks.right.length);
+        for (var i = 0; i < boundsBricks.right.length; i++) {
+          var b = boundsBricks.right[i];
+          drawSingleTile(b.x, b.y);
+        }
+
+        console.log('-- bottom', boundsBricks.bottom.length);
+        for (var i = 0; i < boundsBricks.bottom.length; i++) {
+          var b = boundsBricks.bottom[i];
+          drawSingleTile(b.x, b.y);
+        }
+
+        console.log('-- left', boundsBricks.left.length);
+        for (var i = 0; i < boundsBricks.left.length; i++) {
+          var b = boundsBricks.left[i];
+          drawSingleTile(b.x, b.y);
+        }*/
+
+    // Merge all sides
+    var allBoundsBricks = boundsBricks.top.concat(boundsBricks.right).concat(boundsBricks.bottom).concat(boundsBricks.left);
+
+    // Remove any duplicates
+    var uniqueBoundsBricks = arrayXYUnique(allBoundsBricks);
+
+    for (var i = 0; i < uniqueBoundsBricks.length; i++) {
+      var b = uniqueBoundsBricks[i];
       drawSingleTile(b.x, b.y);
-      console.log(b.x, b.y);
     }
 
-    console.log('-- right', boundsBricks.right.length);
-    for (var i = 0; i < boundsBricks.right.length; i++) {
-      var b = boundsBricks.right[i];
-      drawSingleTile(b.x, b.y);
-      console.log(b.x, b.y);
-    }
+    console.log('Copy/Paste below this line ---------------------------');
+    console.log(JSON.stringify(uniqueBoundsBricks));
 
-    console.log('-- bottom', boundsBricks.bottom.length);
-    for (var i = 0; i < boundsBricks.bottom.length; i++) {
-      var b = boundsBricks.bottom[i];
-      drawSingleTile(b.x, b.y);
-      console.log(b.x, b.y);
-    }
-
-    console.log('-- left', boundsBricks.left.length);
-    for (var i = 0; i < boundsBricks.left.length; i++) {
-      var b = boundsBricks.left[i];
-      drawSingleTile(b.x, b.y);
-      console.log(b.x, b.y);
-    }
-
-    console.log('--- end drawBoundsBricks ---');
   }
 
   function drawSingleTile(x, y, highlight) {
@@ -672,6 +676,23 @@ function BrickMapper(stageDiv) {
 
     return low2 + (high2 - low2) * (value - low1) / (high1 - low1);
 
+  }
+
+  // Remove duplicates in array
+  function arrayXYUnique(array) {
+    var a = array.concat();
+    for (var i = 0; i < a.length; ++i) {
+      for (var j = i + 1; j < a.length; ++j) {
+        if (Math.abs(a[i].x - a[j].x) < 0.01) {
+          if (Math.abs(a[i].y - a[j].y) < 0.01) {
+            a.splice(j--, 1);
+          }
+        }
+
+      }
+    }
+
+    return a;
   }
 
 };
