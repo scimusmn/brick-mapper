@@ -17,6 +17,15 @@
 
       var brickMapper = new BrickMapper($('body'));
       brickMapper.enable();
+      // brickMapper.load();
+
+      setTimeout(() => {
+
+        console.log('bricks loaded');
+        console.log(brickMapper.getAllBricks());
+
+      }, 4000);
+
 
 
     });
