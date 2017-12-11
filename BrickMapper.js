@@ -11,13 +11,31 @@ function BrickMapper(stageDiv) {
   var shortestSide = Math.min(stageWidth, stageHeight);
   var mouseIsDown = false;
 
-  var drawRect = {x:0,y:0,w:0,h:0};
-  var gutterX = 0;
-  var gutterY = 0;
+  var brickWidth = 2;
+  var brickHeight = 2;
+  var intervalX = 0;
+  var intervalY = 0;
   var rowOffset = 0;
 
   var SAVE_KEY = 'brick-mapper-ls';
-  var isLocked = false;
+
+  var horizontalStart = null;
+  var horizontalEnd = null;
+  var horizontalNumPts = 2;
+
+  var diagonalStart = null;
+  var diagonalEnd = null;
+  var diagonalNumPts = 2;
+
+  var brickPoints = [];
+
+  var allBricks = [];
+  var boundsBricks = {};
+  var levelBricks = [];
+
+  var shiftHeld = false;
+  var editMode = false;
+  var hoverBrick = null;
 
   // Setup canvas drawing
   $(stageDiv).append('<canvas id="brick-mapper-canvas"></canvas>');
@@ -26,7 +44,7 @@ function BrickMapper(stageDiv) {
   $('#brick-mapper-canvas').attr('width', stageWidth);
   $('#brick-mapper-canvas').attr('height', stageHeight);
 
-  $(stageDiv).append('<div id="brick-mapper-settings" style="position:fixed; background-color: rgba(255,255,255,0.2); padding: 26px; bottom:0%;"><p id="lockbtn">lock</p><br/><datalist id="offset-detents"><option value="25"><option value="33.33"><option value="50"><option value="66.66"><option value="75"></datalist><form><input id="rowOffsetInput" type="range" min="0" max="100" step="0.01" value="0" /><span> Row offset: </span><span id="rowOffset">0</span><br/><input id="gutterXInput" type="range" min="0" max="30" step="0.1" value="0" /><span> Gutter X: </span><span id="gutter-x">0</span><br/><input id="gutterYInput" type="range" min="0" max="30" step="0.1" value="0" /><span> Gutter Y: </span><span id="gutter-y">0</span></form></div>');
+  $(stageDiv).append('<div id="brick-mapper-settings" style="position:fixed; background-color: rgba(5,5,5,0.8); color: rgba(255,255,255,0.8); padding: 26px; bottom:0%;"><span id="savebtn">SAVE&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp</span><span id="lockbtn" class="edit-mode">LOCK</span><br/><br/><input id="horizontalCount" type="range" min="2" max="100" step="1" value="2" /><span> Horizontal Count: </span><span id="horizontalCountVal">2</span><br/><input id="diagonalCount" type="range" min="2" max="100" step="1" value="2" /><span> Diagonal Count: </span><span id="diagonalCountVal">2</span><br/><input id="brickWidth" type="range" min="1" max="100" step="0.1" value="1" /><span> Brick Width: </span><span id="brickWidthVal">0</span><br/><input id="brickHeight" type="range" min="1" max="70" step="0.1" value="1" /><span> Brick Height: </span><span id="brickHeightVal">0</span></form></div>');
 
   var settings = $('#brick-mapper-settings');
 
@@ -39,58 +57,151 @@ function BrickMapper(stageDiv) {
     $(canvas)[0].addEventListener('mousemove', mousemove, false);
     $(canvas)[0].addEventListener('mouseup', mouseup, false);
 
-    $('#rowOffsetInput')[0].oninput = function(evt) {
-      document.getElementById('rowOffset').innerHTML = evt.target.value + '%';
-      rowOffset = parseFloat(evt.target.value) * 0.01;
-      drawBrickPattern(drawRect);
-    };
+    // Watch when shift is held.
+    $(document).on('keyup keydown', function(evt) {
 
-    $('#gutterXInput')[0].oninput = function(evt) {
-      document.getElementById('gutter-x').innerHTML = evt.target.value;
-      gutterX = parseFloat(evt.target.value);
-      drawBrickPattern(drawRect);
-    };
+      shiftHeld = evt.shiftKey;
 
-    $('#gutterYInput')[0].oninput = function(evt) {
-      document.getElementById('gutter-y').innerHTML = evt.target.value;
-      gutterY = parseFloat(evt.target.value);
-      drawBrickPattern(drawRect);
-    };
-
-    $('#lockbtn').click(() => {
-      console.log($('#lockbtn').text());
-
-      if ($('#lockbtn').text() == 'lock') {
-        $('#lockbtn').text('unlock');
-        isLocked = true;
-      } else {
-        $('#lockbtn').text('lock');
-        isLocked = false;
-      }
     });
 
-    $('#rowOffsetInput')[0].onchange = changeComplete;
-    $('#gutterXInput')[0].onchange = changeComplete;
-    $('#gutterYInput')[0].onchange = changeComplete;
+    $('#brickWidth')[0].oninput = function(evt) {
+      document.getElementById('brickWidthVal').innerHTML = evt.target.value;
+      brickWidth = parseFloat(evt.target.value);
+      levelBricks = [];
+      drawUI();
+    };
+
+    $('#brickHeight')[0].oninput = function(evt) {
+      document.getElementById('brickHeightVal').innerHTML = evt.target.value;
+      brickHeight = parseFloat(evt.target.value);
+      levelBricks = [];
+      drawUI();
+    };
+
+    $('#horizontalCount')[0].oninput = function(evt) {
+      document.getElementById('horizontalCountVal').innerHTML = evt.target.value;
+      horizontalNumPts = parseInt(evt.target.value);
+      drawUI();
+      updateIntervals();
+    };
+
+    $('#diagonalCount')[0].oninput = function(evt) {
+      document.getElementById('diagonalCountVal').innerHTML = evt.target.value;
+      diagonalNumPts = parseInt(evt.target.value);
+      drawUI();
+      updateIntervals();
+    };
+
+    $('#savebtn').click(() => {
+
+      save();
+
+    });
+
+    $('#lockbtn').click(() => {
+
+      console.log('Lock btn clicked');
+
+      if ($('#lockbtn').text() == 'LOCK') {
+
+        $('#lockbtn').text('UNLOCK');
+
+        // Hide all settings
+        $('#brick-mapper-settings').children().not('.edit-mode').hide();
+
+        // Unlock for mapping mode
+        editMode = true;
+
+      } else {
+
+        $('#lockbtn').text('LOCK');
+
+        // Show all settings
+        $('#brick-mapper-settings').children().not('.edit-mode').show();
+
+        // Lock down mapping for brick editor
+        editMode = false;
+
+      }
+
+    });
 
   };
 
   this.disable = function() {
-
-    // $(canvas)[0].removeEventListener('mousedown', mousedown, false);
-    // $(canvas)[0].removeEventListener('mousemove', mousemove, false);
-    // $(canvas)[0].removeEventListener('mouseup', mouseup, false);
 
     $(canvas).hide();
     $(settings).hide();
 
   };
 
+  this.getAllBricks = function() {
+
+    return allBricks;
+
+  };
+
+  this.getBoundingBricks = function() {
+
+    var bounds = {};
+
+  };
+
+  this.getBrickSize = function() {
+
+    return {w:brickWidth, h:brickHeight};
+
+  };
+
+  this.load = function() {
+
+    var loadObj = JSON.parse(localStorage.getItem(SAVE_KEY));
+
+    /*
+
+    for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        var item = JSON.parse(localStorage.getItem(key));
+        loadedData[key] = item;
+      }
+
+    */
+
+    brickWidth = loadObj.brickWidth;
+    brickHeight = loadObj.brickHeight;
+    intervalX = loadObj.intervalX;
+    intervalY = loadObj.intervalY;
+    rowOffset = loadObj.rowOffset;
+
+    console.log('loadObj', loadObj);
+
+  };
+
   function save() {
+
+    console.log('save');
+
     const saveObj = {
 
+      brickWidth: brickWidth,
+      brickHeight: brickHeight,
+      intervalX: intervalX,
+      intervalY: intervalY,
+      rowOffset: rowOffset,
+      allBricks: allBricks,
+
     };
-    localStorage.setItem(SAVE_KEY, saveObj);
+
+    console.log('==== ALL BRICKS ====');
+    console.log(allBricks);
+    console.log('==== END BRICKS ====');
+
+    // console.log(boundsBricks);
+
+    localStorage.setItem(SAVE_KEY, JSON.stringify(saveObj));
+
+    drawBoundsBricks();
+
   }
 
   function mousedown(event) {
@@ -102,182 +213,572 @@ function BrickMapper(stageDiv) {
 
   function mousemove(event) {
 
-    if (mouseIsDown === true) {
-      inputMove(event.pageX, event.pageY);
-    }
+    inputMove(event.pageX, event.pageY);
 
   }
 
   function mouseup(event) {
 
     mouseIsDown = false;
-    inputUp();
+    inputUp(event.pageX, event.pageY);
 
   }
 
   function inputStart(inputX, inputY) {
 
-    drawRect.x = drawRect.w = inputX;
-    drawRect.y = drawRect.h = inputY;
-    clearCanvas();
+    if (editMode == false) {
+      // Mapping mode. Start guide line
+      if (shiftHeld) {
+        horizontalStart = {x:inputX, y:inputY};
+      } else {
+        diagonalStart = {x:inputX, y:inputY};
+      }
+
+    } else {
+      // Edit brick mode. Add brick.
+      if (hoverBrick) {
+        const foundBrickIndex = brickExists(hoverBrick, levelBricks);
+        if (foundBrickIndex == -1) {
+          // Add as new brick
+          levelBricks.push(hoverBrick);
+        } else {
+          // Brick already exists toggle off.
+          levelBricks.splice(foundBrickIndex, 1);
+
+        }
+
+      }
+
+    }
+
+    drawUI(inputX, inputY);
 
   }
 
   function inputMove(inputX, inputY) {
 
-    // Draw rect
-    drawRect.w = inputX - drawRect.x;
-    drawRect.h = inputY - drawRect.y;
+    hoverBrick = findBrickAtPoint(inputX, inputY);
 
-    // Draw UI
-    drawMasterRect(drawRect);
+    if (editMode == false) {
+
+      if (mouseIsDown) {
+        console.log('inputMove', shiftHeld);
+
+        if (shiftHeld) {
+          horizontalEnd = {x:inputX, y:inputY};
+        } else {
+          diagonalEnd = {x:inputX, y:inputY};
+        }
+
+      }
+
+    } else {
+
+      if (mouseIsDown) {
+        if (hoverBrick) {
+          if (brickExists(hoverBrick, levelBricks) == -1) {
+            // Add to level
+            levelBricks.push(hoverBrick);
+          }
+        }
+      }
+
+    }
+
+    drawUI(inputX, inputY);
 
   }
 
-  function inputUp() {
+  function inputUp(inputX, inputY) {
 
-    // We only allow drawing from
-    // upper left to lower right
-    if (drawRect.w < 0 || drawRect.h < 0) {
-      drawRect.w = drawRect.h = 0;
-      console.log('Must draw from upper left to lower right.');
-      clearCanvas();
+    if (editMode == false) {
+
+      if (shiftHeld) {
+
+        if (horizontalStart.x >= horizontalEnd.x) {
+          console.log('abort h');
+          horizontalEnd = null;
+          horizontalStart = null;
+          return;
+        }
+
+        horizontalEnd = {x:inputX, y:inputY};
+
+      } else {
+
+        if (diagonalStart.x >= diagonalEnd.x) {
+
+          console.log('abort v');
+          diagonalEnd = null;
+          diagonalStart = null;
+          return;
+        }
+
+        diagonalEnd = {x:inputX, y:inputY};
+      }
+
+      updateIntervals();
+
     }
 
   }
 
-  function changeComplete() {
-    console.log('Save values and redraw grid.');
-    drawBrickPattern(drawRect);
+  function updateIntervals() {
+
+    console.log('updateIntervals');
+    if (horizontalEnd) {
+
+      var pixelWidth = horizontalEnd.x - horizontalStart.x;
+      intervalX = pixelWidth / (horizontalNumPts - 1);
+
+      console.log('horizontal interval x', intervalX);
+
+      updateGuideBrickPoints();
+
+    }
+
+    if (diagonalEnd) {
+
+      var pixelHeight = diagonalEnd.y - diagonalStart.y;
+      var pixelWidth = diagonalEnd.x - diagonalStart.x;
+
+      intervalY = pixelHeight / (diagonalNumPts - 1);
+      rowOffset = pixelWidth / (diagonalNumPts - 1);
+
+      console.log('diagonal interval y', intervalY);
+      console.log('diagonal rowOffset', rowOffset);
+
+    }
+
+    levelBricks = [];
+
   }
 
-  // Canvas drawing
-  function drawMasterRect(drawRect) {
+  function updateGuideBrickPoints() {
+
+    var avgY = (horizontalStart.y + horizontalEnd.y) / 2;
+    var px = horizontalStart.x;
+    brickPoints = [];
+
+    for (var i = 0; i < horizontalNumPts; i++) {
+
+      pt = avgY;
+
+      brickPoints.push({x:px, y:avgY});
+
+      px += intervalX;
+
+    }
+
+  }
+
+  function findBrickAtPoint(x,y) {
+
+    var foundBrick = null;
+    var r1x;
+    var r1y;
+    var r2x;
+    var r2y;
+
+    // Loop through all bricks and see
+    // if this point is within any.
+    for (var i = 0; i < allBricks.length; i++) {
+
+      var brick = allBricks[i];
+
+      r1x = brick.x - (brick.w / 2);
+      r1y = brick.y - (brick.h / 2);
+      r2x = brick.x + (brick.w / 2);
+      r2y = brick.y + (brick.h / 2);
+
+      // Is point within brick rectangle?
+      if (r1x <= x && x <= r2x && r1y <= y && y <= r2y) {
+        // Is contained in this brick.
+        foundBrick = brick;
+
+        // Exit
+        break;
+      }
+
+    }
+
+    return foundBrick;
+
+  }
+
+  // Add brick
+  function addBrickPoint(x,y) {
+
+    drawUI(x, y);
+
+  }
+
+  function drawUI(mouseX, mouseY) {
 
     clearCanvas();
 
-    // Currently drawn rect.
-    ctx.rect(drawRect.x, drawRect.y, drawRect.w, drawRect.h);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fill();
+    if (editMode && mouseIsDown) {
+      console.log('drawing level tiles', levelBricks.length);
+    } else {
+      // Reset to be filled anew...
+      allBricks = [];
+      boundsBricks = {top:[],bottom:[],right:[],left:[]};
+    }
 
-    // Ring around origin
+    // Red crosshairs for easy cursor tracking
     ctx.beginPath();
-    ctx.arc(drawRect.x, drawRect.y, 4, 0, 2 * Math.PI);
-    ctx.fillStyle = 'red';
-    ctx.strokeStyle = 'red';
-    ctx.fill();
+    ctx.strokeStyle = '#FD3E43';
+    ctx.moveTo(0, mouseY);
+    ctx.lineTo(stageWidth, mouseY);
+    ctx.moveTo(mouseX, 0);
+    ctx.lineTo(mouseX, stageHeight);
     ctx.stroke();
+
+    // Draw horizontal guide line
+    if (horizontalStart) {
+
+      circle(horizontalStart.x, horizontalStart.y);
+      line(horizontalStart.x, horizontalStart.y - 20, horizontalStart.x, horizontalStart.y + 20, 'white');
+      line(horizontalStart.x - 20, horizontalStart.y, horizontalStart.x + 20, horizontalStart.y, 'white');
+
+      if (horizontalEnd) {
+
+        line(horizontalStart.x, horizontalStart.y, horizontalEnd.x, horizontalEnd.y, 'yellow');
+        circle(horizontalEnd.x, horizontalEnd.y);
+        line(horizontalEnd.x, horizontalEnd.y - 20, horizontalEnd.x, horizontalEnd.y + 20, 'white');
+        line(horizontalEnd.x  - 20, horizontalEnd.y, horizontalEnd.x + 20, horizontalEnd.y, 'white');
+
+      }
+
+      // Draw ticks along line
+      // to represent brick centers...
+      if (!mouseIsDown) {
+
+        drawSegmentsOverLine(horizontalStart, horizontalEnd, horizontalNumPts);
+
+      }
+
+    }
+
+    // Draw diagonal guide line
+    if (diagonalStart) {
+
+      circle(diagonalStart.x, diagonalStart.y);
+      line(diagonalStart.x  - 20, diagonalStart.y, diagonalStart.x + 20, diagonalStart.y, 'white');
+      line(diagonalStart.x, diagonalStart.y  - 20, diagonalStart.x, diagonalStart.y + 20, 'white');
+
+      if (diagonalEnd) {
+
+        line(diagonalStart.x, diagonalStart.y, diagonalEnd.x, diagonalEnd.y, '#44ffaa');
+        circle(diagonalEnd.x, diagonalEnd.y);
+        line(diagonalEnd.x, diagonalEnd.y - 20, diagonalEnd.x, diagonalEnd.y + 20, 'white');
+        line(diagonalEnd.x - 20, diagonalEnd.y, diagonalEnd.x  + 20, diagonalEnd.y, 'white');
+
+      }
+
+      // Draw ticks along line
+      // to represent brick centers...
+      if (!mouseIsDown) {
+
+        drawSegmentsOverLine(diagonalStart, diagonalEnd, diagonalNumPts);
+
+      }
+
+    }
+
+    // When horizontal and diagonal have been
+    // drawn, extrapolate to all bricks
+    if (!mouseIsDown && diagonalNumPts > 2 && horizontalNumPts > 2) {
+
+      // Draw the guide brick row...
+      for (var i = 0; i < brickPoints.length; i++) {
+
+        var bp = brickPoints[i];
+
+        // Draw all brick points
+        ctx.beginPath();
+        ctx.arc(bp.x, bp.y, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = 'red';
+        ctx.strokeStyle = 'red';
+        ctx.fill();
+        ctx.stroke();
+
+      }
+
+      // Starting from first brick,
+      // extrapolate to all brick center pts
+
+      var rowY = brickPoints[0].y;
+      var rowX = brickPoints[0].x;
+
+      let last = {x:rowX, y:rowY};
+
+      // Draw guide row
+      tileRow(rowX, rowY);
+
+      // Create rows going upward
+      while (rowY > stageTop + brickHeight) {
+
+        // Move one tile up
+        rowY -= intervalY;
+        rowX -= rowOffset;
+
+        // Draw row
+        last = tileRow(rowX, rowY);
+
+      }
+
+      boundsBricks.top = last;
+
+      rowY = brickPoints[0].y;
+      rowX = brickPoints[0].x;
+
+      // Create rows going downward
+      while (rowY < stageBottom - brickHeight) {
+
+        // Move one tile up
+        rowY += intervalY;
+        rowX += rowOffset;
+
+        // Draw row
+        last = tileRow(rowX, rowY);
+
+      }
+
+      boundsBricks.bottom = last;
+
+    }
+
+    // Draw all level bricks on top
+    for (var i = 0; i < levelBricks.length; i++) {
+
+      var lb = levelBricks[i];
+      styledRect(lb.x, lb.y, lb.w, lb.h, 'level');
+
+    }
+
+    // Lastly, draw highlight over any brick
+    // mouse is hovering over
+    if (hoverBrick) {
+      styledRect(hoverBrick.x, hoverBrick.y, hoverBrick.w, hoverBrick.h, 'hover');
+    }
 
   }
 
   // Calculate and redraw brick pattern.
-  function drawBrickPattern(mainRect) {
+  function drawSegmentsOverLine(start, end, totalPts) {
 
-    if (mainRect.w == 0 || mainRect.h == 0) return;
-
-    clearCanvas();
-    drawMasterRect(mainRect);
-
-    // Using current variables, draw bricks
-    // in every direction until outside bounds.
-    let iX = mainRect.x;
-    let iY = mainRect.y;
-
-    const pixelRowOffset = rowOffset * (1 * (mainRect.w + gutterX));
-
-    // Create "this" row
-    tileRow({x:iX, y:iY, w:mainRect.w, h:mainRect.h});
-
-    // Create tile rows, going upward..
-    while (iY > stageTop - mainRect.h) {
-
-      // Move one tile up
-      iY -= mainRect.h;
-
-      // Add gutter
-      iY -= gutterY;
-
-      // Offset row's X position
-      iX += pixelRowOffset;
-
-      tileRow({x:iX, y:iY, w:mainRect.w, h:mainRect.h});
-
-    }
-
-    // Create tile rows, going downward..
-    iY = mainRect.y;
-    iX = mainRect.x;
-    while (iY < stageBottom + mainRect.h) {
-
-      // Move one tile up
-      iY += mainRect.h;
-
-      // Add gutter
-      iY += gutterY;
-
-      // Offset row's X position
-      iX -= pixelRowOffset;
-
-      tileRow({x:iX, y:iY, w:mainRect.w, h:mainRect.h});
-
+    var percIncrement = 1 / (totalPts - 1);
+    var drawPerc = 0;
+    var pt;
+    for (var i = 0; i < totalPts; i++) {
+      drawPerc = percIncrement * i;
+      pt = midpoint(start.x, start.y, end.x, end.y, drawPerc);
+      circle(pt.x, pt.y);
     }
 
   }
 
-  function tileRow(guideRect) {
+  function tileRow(baseX, baseY) {
 
-    let iX = guideRect.x;
-    let iY = guideRect.y;
-    let tileRect = {x:guideRect.x, y:guideRect.y, w:guideRect.w, h:guideRect.h};
+    // Firstly, if base brick is offscreen,
+    // iterate until onscreen.
+    while ((baseX + (brickWidth / 2)) < stageLeft) {
+      baseX += intervalX;
+    }
+
+    while ((baseX - (brickWidth / 2)) > stageRight) {
+      baseX -= intervalX;
+    }
+
+    let rowArray = [];
+    let iX = baseX;
+    let iY = baseY;
+    let counter = 1;
+
+    let leftmostBrick = {x:999999};
+    let rightmostBrick = {x:-999999};
+
+    // Check for bounds bricks
+    // if (iX < leftmostBrick.x) {
+    //   leftmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
+    // }
+
+    // if (iX > rightmostBrick.x) {
+    //   rightmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
+    // }
 
     // From guideRect, tile left...
-    while (iX > stageLeft - guideRect.w) {
+    while ((iX + (brickWidth / 2)) > stageLeft) {
+
+      rowArray.push(drawSingleTile(iX, iY, isOdd(counter)));
+
+      // Check for bounds bricks
+      if (iX < leftmostBrick.x) {
+        leftmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
+      }
+
+      if (iX > rightmostBrick.x) {
+        rightmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
+      }
 
       // Move one tile over
-      iX -= guideRect.w;
+      iX -= intervalX;
 
-      // Add gutter
-      iX -= gutterX;
-
-      tileRect = {x:iX, y:iY, w:guideRect.w, h:guideRect.h};
-      drawSingleTile(tileRect);
+      counter++;
 
     }
 
     // From guideRect, tile right...
-    iX = guideRect.x;
+    iX = baseX + intervalX;
+    counter = 0;
 
-    while (iX < stageRight + guideRect.w) {
+    while ((iX - (brickWidth / 2)) < stageRight) {
+
+      rowArray.push(drawSingleTile(iX, iY, isOdd(counter)));
+
+      // Check for bounds bricks
+      if (iX < leftmostBrick.x) {
+        leftmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
+      }
+
+      if (iX > rightmostBrick.x) {
+        rightmostBrick = {x:iX, y:iY, w:brickWidth, h:brickHeight};
+      }
 
       // Move one tile over
-      iX += guideRect.w;
+      iX += intervalX;
 
-      // Add gutter
-      iX += gutterX;
-
-      tileRect = {x:iX, y:iY, w:guideRect.w, h:guideRect.h};
-      drawSingleTile(tileRect);
+      counter++;
 
     }
 
+    boundsBricks.left.push(leftmostBrick);
+    boundsBricks.right.push(rightmostBrick);
+
+    return rowArray;
+
   }
 
-  function drawSingleTile(rect) {
+  function isOdd(n) {
+    return Math.abs(n % 2) == 1;
+  }
+
+  function circle(x,y,r,c) {
+    var radius = r || 3;
+    var clr = c || 'white';
+    ctx.beginPath();
+    ctx.fillStyle = clr;
+    ctx.strokeStyle = clr;
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function line(x1,y1,x2,y2,c) {
+    var clr = c || 'white';
+    ctx.beginPath();
+    ctx.strokeStyle = clr;
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.closePath();
+  }
+
+  function midpoint(lat1, long1, lat2, long2, per) {
+    return {x:(lat1 + (lat2 - lat1) * per), y:(long1 + (long2 - long1) * per)};
+  }
+
+  function drawBoundsBricks() {
+    clearCanvas();
+
+    // Merge all sides
+    var allBoundsBricks = boundsBricks.top.concat(boundsBricks.right).concat(boundsBricks.bottom).concat(boundsBricks.left);
+
+    var allLevelAndBoundsBricks = allBoundsBricks.concat(levelBricks);
+
+    // Remove any duplicates
+    var uniqueLevelBricks = arrayXYUnique(allLevelAndBoundsBricks);
+
+    for (var i = 0; i < uniqueLevelBricks.length; i++) {
+      var b = uniqueLevelBricks[i];
+      drawSingleTile(b.x, b.y, true);
+    }
+
+    console.log('Copy/Paste below this line ---------------------------');
+    console.log(JSON.stringify(uniqueLevelBricks));
+
+  }
+
+  function drawSingleTile(x, y, highlight) {
+
+    var highlight = highlight | false;
+
+    var clr = 'rgba(255,255,255,0.0)';
+    var gridStyle = 'grid1';
+    if (highlight) {
+      clr = '#FD6E83';
+      gridStyle = 'grid2';
+    }
+
+    styledRect(x, y, brickWidth, brickHeight, gridStyle);
+
+    circle(x, y, 2, clr);
+
+    var drawnBrick = {x:x,y:y,w:brickWidth,h:brickHeight};
+
+    allBricks.push(drawnBrick);
+
+    return drawnBrick;
+
+  }
+
+  function styledRect(x, y, w, h, style) {
+
+    var r1x = x - (w / 2);
+    var r1y = y - (h / 2);
+    var r2x = x + (w / 2);
+    var r2y = y + (h / 2);
+
+    var fill = 'rgba(255,255,255,0.0)';
+    var stroke = 'rgba(123,255,255,0.9)';
+
+    switch (style) {
+      case 'grid1':
+        fill = ctx.fillStyle = 'rgba(255,255,255,0.0)';
+        stroke = 'rgba(123,255,255,0.9)';
+        break;
+      case 'grid2':
+        fill = 'rgba(123,255,255,0.4)';
+        stroke = 'rgba(123,255,255,0.9)';
+        break;
+      case 'hover':
+        fill = 'rgba(255,255,255,0.4)';
+        stroke = 'red';
+        break;
+      case 'level':
+        fill = 'rgba(255,255,255,0.9)';
+        stroke = 'yellow';
+        break;
+    }
 
     // Currently drawn rect.
-    ctx.rect(rect.x, rect.y, rect.w, rect.h);
-    ctx.fillStyle = 'rgba(100,100,255,0.6)';
+    ctx.beginPath();
+    ctx.rect(r1x, r1y, w, h);
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
     ctx.fill();
+    ctx.stroke();
 
     // Draw cross strokes
     ctx.beginPath();
     ctx.strokeStyle = 'black';
-    ctx.moveTo(rect.x, rect.y);
-    ctx.lineTo(rect.x + rect.w, rect.y + rect.h);
-    ctx.moveTo(rect.x + rect.w, rect.y);
-    ctx.lineTo(rect.x, rect.y + rect.h);
+    ctx.moveTo(r1x, r1y);
+    ctx.lineTo(r2x, r2y);
+    ctx.moveTo(r1x, r2y);
+    ctx.lineTo(r2x, r1y);
     ctx.stroke();
+    ctx.closePath();
 
   }
 
@@ -290,6 +791,47 @@ function BrickMapper(stageDiv) {
   function map(value, low1, high1, low2, high2) {
 
     return low2 + (high2 - low2) * (value - low1) / (high1 - low1);
+
+  }
+
+  // Remove duplicates in array
+  function arrayXYUnique(array) {
+    var a = array.concat();
+    for (var i = 0; i < a.length; ++i) {
+      for (var j = i + 1; j < a.length; ++j) {
+        if (Math.abs(a[i].x - a[j].x) < 0.01) {
+          if (Math.abs(a[i].y - a[j].y) < 0.01) {
+            a.splice(j--, 1);
+          }
+        }
+
+      }
+    }
+
+    return a;
+  }
+
+  // Check array for brick that exists
+  // with matching XY coords
+  // Returns index if exists
+  // otherwise -1
+  function brickExists(brick, a) {
+
+    for (var i = 0; i < a.length; ++i) {
+
+      if (Math.abs(a[i].x - brick.x) < 0.01) {
+
+        if (Math.abs(a[i].y - brick.y) < 0.01) {
+
+          return i;
+
+        }
+
+      }
+
+    }
+
+    return -1;
 
   }
 
