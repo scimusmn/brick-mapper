@@ -44,7 +44,7 @@ function BrickMapper(stageDiv) {
   $('#brick-mapper-canvas').attr('width', stageWidth);
   $('#brick-mapper-canvas').attr('height', stageHeight);
 
-  $(stageDiv).append('<div id="brick-mapper-settings" style="position:fixed; background-color: rgba(5,5,5,0.8); color: rgba(255,255,255,0.8); padding: 26px; bottom:0%;"><span id="savebtn">SAVE&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp</span><span id="lockbtn" class="edit-mode">LOCK</span><br/><br/><input id="horizontalCount" type="range" min="2" max="100" step="1" value="2" /><span> Horizontal Count: </span><span id="horizontalCountVal">2</span><br/><input id="diagonalCount" type="range" min="2" max="100" step="1" value="2" /><span> Diagonal Count: </span><span id="diagonalCountVal">2</span><br/><input id="brickWidth" type="range" min="1" max="70" step="0.1" value="1" /><span> Brick Width: </span><span id="brickWidthVal">0</span><br/><input id="brickHeight" type="range" min="1" max="70" step="0.1" value="1" /><span> Brick Height: </span><span id="brickHeightVal">0</span></form></div>');
+  $(stageDiv).append('<div id="brick-mapper-settings" style="position:fixed; background-color: rgba(5,5,5,0.8); color: rgba(255,255,255,0.8); padding: 26px; bottom:0%;"><span id="savebtn">SAVE&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp</span><span id="lockbtn" class="edit-mode">LOCK</span><br/><br/><input id="horizontalCount" type="range" min="2" max="100" step="1" value="2" /><span> Horizontal Count: </span><span id="horizontalCountVal">2</span><br/><input id="diagonalCount" type="range" min="2" max="100" step="1" value="2" /><span> Diagonal Count: </span><span id="diagonalCountVal">2</span><br/><input id="brickWidth" type="range" min="1" max="100" step="0.1" value="1" /><span> Brick Width: </span><span id="brickWidthVal">0</span><br/><input id="brickHeight" type="range" min="1" max="70" step="0.1" value="1" /><span> Brick Height: </span><span id="brickHeightVal">0</span></form></div>');
 
   var settings = $('#brick-mapper-settings');
 
@@ -237,7 +237,16 @@ function BrickMapper(stageDiv) {
     } else {
       // Edit brick mode. Add brick.
       if (hoverBrick) {
-        levelBricks.push(hoverBrick);
+        const foundBrickIndex = brickExists(hoverBrick, levelBricks);
+        if (foundBrickIndex == -1) {
+          // Add as new brick
+          levelBricks.push(hoverBrick);
+        } else {
+          // Brick already exists toggle off.
+          levelBricks.splice(foundBrickIndex, 1);
+
+        }
+
       }
 
     }
@@ -266,18 +275,10 @@ function BrickMapper(stageDiv) {
     } else {
 
       if (mouseIsDown) {
-
-        console.log('ms', allBricks.length);
-
         if (hoverBrick) {
-          console.log('hb');
-          if (brickExists(hoverBrick, levelBricks) == false) {
+          if (brickExists(hoverBrick, levelBricks) == -1) {
             // Add to level
             levelBricks.push(hoverBrick);
-          } else {
-            console.log('remove?');
-
-            // levelBricks.push(hoverBrick);
           }
         }
       }
@@ -293,8 +294,26 @@ function BrickMapper(stageDiv) {
     if (editMode == false) {
 
       if (shiftHeld) {
+
+        if (horizontalStart.x >= horizontalEnd.x) {
+          console.log('abort h');
+          horizontalEnd = null;
+          horizontalStart = null;
+          return;
+        }
+
         horizontalEnd = {x:inputX, y:inputY};
+
       } else {
+
+        if (diagonalStart.x >= diagonalEnd.x) {
+
+          console.log('abort v');
+          diagonalEnd = null;
+          diagonalStart = null;
+          return;
+        }
+
         diagonalEnd = {x:inputX, y:inputY};
       }
 
@@ -306,6 +325,7 @@ function BrickMapper(stageDiv) {
 
   function updateIntervals() {
 
+    console.log('updateIntervals');
     if (horizontalEnd) {
 
       var pixelWidth = horizontalEnd.x - horizontalStart.x;
@@ -397,8 +417,13 @@ function BrickMapper(stageDiv) {
 
     clearCanvas();
 
-    allBricks = [];
-    boundsBricks = {top:[],bottom:[],right:[],left:[]};
+    if (editMode && mouseIsDown) {
+      console.log('drawing level tiles', levelBricks.length);
+    } else {
+      // Reset to be filled anew...
+      allBricks = [];
+      boundsBricks = {top:[],bottom:[],right:[],left:[]};
+    }
 
     // Red crosshairs for easy cursor tracking
     ctx.beginPath();
@@ -788,6 +813,8 @@ function BrickMapper(stageDiv) {
 
   // Check array for brick that exists
   // with matching XY coords
+  // Returns index if exists
+  // otherwise -1
   function brickExists(brick, a) {
 
     for (var i = 0; i < a.length; ++i) {
@@ -796,7 +823,7 @@ function BrickMapper(stageDiv) {
 
         if (Math.abs(a[i].y - brick.y) < 0.01) {
 
-          return true;
+          return i;
 
         }
 
@@ -804,7 +831,7 @@ function BrickMapper(stageDiv) {
 
     }
 
-    return false;
+    return -1;
 
   }
 
