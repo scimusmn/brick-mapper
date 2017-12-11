@@ -4,6 +4,10 @@
     box-sizing: border-box;
 }
 
+html {
+  background-color: #222;
+}
+
 body {
 
     color:#acaaad;
@@ -12,5 +16,7 @@ body {
 
     width: 1920px;
     height: 1080px;
+
+    overflow: hidden;
 
 }
