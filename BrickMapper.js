@@ -31,8 +31,11 @@ function BrickMapper(stageDiv) {
 
   var allBricks = [];
   var boundsBricks = {};
+  var levelBricks = [];
 
   var shiftHeld = false;
+  var editMode = false;
+  var hoverBrick = null;
 
   // Setup canvas drawing
   $(stageDiv).append('<canvas id="brick-mapper-canvas"></canvas>');
@@ -64,12 +67,14 @@ function BrickMapper(stageDiv) {
     $('#brickWidth')[0].oninput = function(evt) {
       document.getElementById('brickWidthVal').innerHTML = evt.target.value;
       brickWidth = parseFloat(evt.target.value);
+      levelBricks = [];
       drawUI();
     };
 
     $('#brickHeight')[0].oninput = function(evt) {
       document.getElementById('brickHeightVal').innerHTML = evt.target.value;
       brickHeight = parseFloat(evt.target.value);
+      levelBricks = [];
       drawUI();
     };
 
@@ -105,6 +110,7 @@ function BrickMapper(stageDiv) {
         $('#brick-mapper-settings').children().not('.edit-mode').hide();
 
         // Unlock for mapping mode
+        editMode = true;
 
       } else {
 
@@ -114,20 +120,15 @@ function BrickMapper(stageDiv) {
         $('#brick-mapper-settings').children().not('.edit-mode').show();
 
         // Lock down mapping for brick editor
+        editMode = false;
+
       }
 
     });
 
-    $('#brickWidth')[0].onchange = changeComplete;
-    $('#brickHeight')[0].onchange = changeComplete;
-
   };
 
   this.disable = function() {
-
-    // $(canvas)[0].removeEventListener('mousedown', mousedown, false);
-    // $(canvas)[0].removeEventListener('mousemove', mousemove, false);
-    // $(canvas)[0].removeEventListener('mouseup', mouseup, false);
 
     $(canvas).hide();
     $(settings).hide();
@@ -156,11 +157,15 @@ function BrickMapper(stageDiv) {
 
     var loadObj = JSON.parse(localStorage.getItem(SAVE_KEY));
 
-    // for (var i = 0; i < localStorage.length; i++) {
-    //   var key = localStorage.key(i);
-    //   var item = JSON.parse(localStorage.getItem(key));
-    //   loadedData[key] = item;
-    // }
+    /*
+
+    for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        var item = JSON.parse(localStorage.getItem(key));
+        loadedData[key] = item;
+      }
+
+    */
 
     brickWidth = loadObj.brickWidth;
     brickHeight = loadObj.brickHeight;
@@ -221,10 +226,20 @@ function BrickMapper(stageDiv) {
 
   function inputStart(inputX, inputY) {
 
-    if (shiftHeld) {
-      horizontalStart = {x:inputX, y:inputY};
+    if (editMode == false) {
+      // Mapping mode. Start guide line
+      if (shiftHeld) {
+        horizontalStart = {x:inputX, y:inputY};
+      } else {
+        diagonalStart = {x:inputX, y:inputY};
+      }
+
     } else {
-      diagonalStart = {x:inputX, y:inputY};
+      // Edit brick mode. Add brick.
+      if (hoverBrick) {
+        levelBricks.push(hoverBrick);
+      }
+
     }
 
     drawUI(inputX, inputY);
@@ -233,13 +248,38 @@ function BrickMapper(stageDiv) {
 
   function inputMove(inputX, inputY) {
 
-    if (mouseIsDown) {
-      console.log('inputMove', shiftHeld);
+    hoverBrick = findBrickAtPoint(inputX, inputY);
 
-      if (shiftHeld) {
-        horizontalEnd = {x:inputX, y:inputY};
-      } else {
-        diagonalEnd = {x:inputX, y:inputY};
+    if (editMode == false) {
+
+      if (mouseIsDown) {
+        console.log('inputMove', shiftHeld);
+
+        if (shiftHeld) {
+          horizontalEnd = {x:inputX, y:inputY};
+        } else {
+          diagonalEnd = {x:inputX, y:inputY};
+        }
+
+      }
+
+    } else {
+
+      if (mouseIsDown) {
+
+        console.log('ms', allBricks.length);
+
+        if (hoverBrick) {
+          console.log('hb');
+          if (brickExists(hoverBrick, levelBricks) == false) {
+            // Add to level
+            levelBricks.push(hoverBrick);
+          } else {
+            console.log('remove?');
+
+            // levelBricks.push(hoverBrick);
+          }
+        }
       }
 
     }
@@ -250,13 +290,17 @@ function BrickMapper(stageDiv) {
 
   function inputUp(inputX, inputY) {
 
-    if (shiftHeld) {
-      horizontalEnd = {x:inputX, y:inputY};
-    } else {
-      diagonalEnd = {x:inputX, y:inputY};
-    }
+    if (editMode == false) {
 
-    updateIntervals();
+      if (shiftHeld) {
+        horizontalEnd = {x:inputX, y:inputY};
+      } else {
+        diagonalEnd = {x:inputX, y:inputY};
+      }
+
+      updateIntervals();
+
+    }
 
   }
 
@@ -286,6 +330,8 @@ function BrickMapper(stageDiv) {
 
     }
 
+    levelBricks = [];
+
   }
 
   function updateGuideBrickPoints() {
@@ -306,9 +352,37 @@ function BrickMapper(stageDiv) {
 
   }
 
-  function changeComplete() {
+  function findBrickAtPoint(x,y) {
 
-    console.log('Save values and redraw grid.');
+    var foundBrick = null;
+    var r1x;
+    var r1y;
+    var r2x;
+    var r2y;
+
+    // Loop through all bricks and see
+    // if this point is within any.
+    for (var i = 0; i < allBricks.length; i++) {
+
+      var brick = allBricks[i];
+
+      r1x = brick.x - (brick.w / 2);
+      r1y = brick.y - (brick.h / 2);
+      r2x = brick.x + (brick.w / 2);
+      r2y = brick.y + (brick.h / 2);
+
+      // Is point within brick rectangle?
+      if (r1x <= x && x <= r2x && r1y <= y && y <= r2y) {
+        // Is contained in this brick.
+        foundBrick = brick;
+
+        // Exit
+        break;
+      }
+
+    }
+
+    return foundBrick;
 
   }
 
@@ -450,6 +524,20 @@ function BrickMapper(stageDiv) {
 
     }
 
+    // Draw all level bricks on top
+    for (var i = 0; i < levelBricks.length; i++) {
+
+      var lb = levelBricks[i];
+      styledRect(lb.x, lb.y, lb.w, lb.h, 'level');
+
+    }
+
+    // Lastly, draw highlight over any brick
+    // mouse is hovering over
+    if (hoverBrick) {
+      styledRect(hoverBrick.x, hoverBrick.y, hoverBrick.w, hoverBrick.h, 'hover');
+    }
+
   }
 
   // Calculate and redraw brick pattern.
@@ -579,42 +667,21 @@ function BrickMapper(stageDiv) {
   function drawBoundsBricks() {
     clearCanvas();
 
-    /*    for (var i = 0; i < boundsBricks.top.length; i++) {
-          var b = boundsBricks.top[i];
-          drawSingleTile(b.x, b.y);
-        }
-
-        console.log('-- right', boundsBricks.right.length);
-        for (var i = 0; i < boundsBricks.right.length; i++) {
-          var b = boundsBricks.right[i];
-          drawSingleTile(b.x, b.y);
-        }
-
-        console.log('-- bottom', boundsBricks.bottom.length);
-        for (var i = 0; i < boundsBricks.bottom.length; i++) {
-          var b = boundsBricks.bottom[i];
-          drawSingleTile(b.x, b.y);
-        }
-
-        console.log('-- left', boundsBricks.left.length);
-        for (var i = 0; i < boundsBricks.left.length; i++) {
-          var b = boundsBricks.left[i];
-          drawSingleTile(b.x, b.y);
-        }*/
-
     // Merge all sides
     var allBoundsBricks = boundsBricks.top.concat(boundsBricks.right).concat(boundsBricks.bottom).concat(boundsBricks.left);
 
-    // Remove any duplicates
-    var uniqueBoundsBricks = arrayXYUnique(allBoundsBricks);
+    var allLevelAndBoundsBricks = allBoundsBricks.concat(levelBricks);
 
-    for (var i = 0; i < uniqueBoundsBricks.length; i++) {
-      var b = uniqueBoundsBricks[i];
-      drawSingleTile(b.x, b.y);
+    // Remove any duplicates
+    var uniqueLevelBricks = arrayXYUnique(allLevelAndBoundsBricks);
+
+    for (var i = 0; i < uniqueLevelBricks.length; i++) {
+      var b = uniqueLevelBricks[i];
+      drawSingleTile(b.x, b.y, true);
     }
 
     console.log('Copy/Paste below this line ---------------------------');
-    console.log(JSON.stringify(uniqueBoundsBricks));
+    console.log(JSON.stringify(uniqueLevelBricks));
 
   }
 
@@ -622,22 +689,59 @@ function BrickMapper(stageDiv) {
 
     var highlight = highlight | false;
 
-    var r1x = x - (brickWidth / 2);
-    var r1y = y - (brickHeight / 2);
-    var r2x = x + (brickWidth / 2);
-    var r2y = y + (brickHeight / 2);
+    var clr = 'rgba(255,255,255,0.0)';
+    var gridStyle = 'grid1';
+    if (highlight) {
+      clr = '#FD6E83';
+      gridStyle = 'grid2';
+    }
+
+    styledRect(x, y, brickWidth, brickHeight, gridStyle);
+
+    circle(x, y, 2, clr);
+
+    var drawnBrick = {x:x,y:y,w:brickWidth,h:brickHeight};
+
+    allBricks.push(drawnBrick);
+
+    return drawnBrick;
+
+  }
+
+  function styledRect(x, y, w, h, style) {
+
+    var r1x = x - (w / 2);
+    var r1y = y - (h / 2);
+    var r2x = x + (w / 2);
+    var r2y = y + (h / 2);
+
+    var fill = 'rgba(255,255,255,0.0)';
+    var stroke = 'rgba(123,255,255,0.9)';
+
+    switch (style) {
+      case 'grid1':
+        fill = ctx.fillStyle = 'rgba(255,255,255,0.0)';
+        stroke = 'rgba(123,255,255,0.9)';
+        break;
+      case 'grid2':
+        fill = 'rgba(123,255,255,0.4)';
+        stroke = 'rgba(123,255,255,0.9)';
+        break;
+      case 'hover':
+        fill = 'rgba(255,255,255,0.4)';
+        stroke = 'red';
+        break;
+      case 'level':
+        fill = 'rgba(255,255,255,0.9)';
+        stroke = 'yellow';
+        break;
+    }
 
     // Currently drawn rect.
     ctx.beginPath();
-    ctx.rect(r1x, r1y, brickWidth, brickHeight);
-    ctx.fillStyle = 'rgba(123,255,255,0.4)';
-
-    if (highlight == true) {
-      ctx.fillStyle = 'rgba(255,255,255,0.0)';
-    }
-
-    ctx.strokeStyle = 'rgba(123,255,255,0.9)';
-
+    ctx.rect(r1x, r1y, w, h);
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
     ctx.fill();
     ctx.stroke();
 
@@ -650,19 +754,6 @@ function BrickMapper(stageDiv) {
     ctx.lineTo(r2x, r1y);
     ctx.stroke();
     ctx.closePath();
-
-    var clr = 'rgba(255,255,255,0.0)';
-    if (highlight) {
-      clr = '#FD6E83';
-    }
-
-    circle(x, y, 2, clr);
-
-    var drawnBrick = {x:x,y:y,w:brickWidth,h:brickHeight};
-
-    allBricks.push(drawnBrick);
-
-    return drawnBrick;
 
   }
 
@@ -693,6 +784,28 @@ function BrickMapper(stageDiv) {
     }
 
     return a;
+  }
+
+  // Check array for brick that exists
+  // with matching XY coords
+  function brickExists(brick, a) {
+
+    for (var i = 0; i < a.length; ++i) {
+
+      if (Math.abs(a[i].x - brick.x) < 0.01) {
+
+        if (Math.abs(a[i].y - brick.y) < 0.01) {
+
+          return true;
+
+        }
+
+      }
+
+    }
+
+    return false;
+
   }
 
 };
