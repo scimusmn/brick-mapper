@@ -5,18 +5,26 @@
 }
 
 html {
-  background-color: #222;
+  background-color: #5d5422;
 }
 
 body {
 
     color:#acaaad;
     font: 13px Helvetica, Arial;
-    background: #000;
+
 
     width: 1920px;
     height: 1080px;
 
     overflow: hidden;
+
+    background-color: #000;
+    /*background-image: url(backgrounds/logo.png);*/
+
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-attachment: fixed;
+    background-position: center center;
 
 }

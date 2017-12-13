@@ -505,6 +505,18 @@ function BrickMapper(stageDiv) {
 
       }
 
+      if (intervalX == 0 || intervalY == 0) {
+        console.log('Avoiding infinite draw with 0 intervals', intervalX, intervalY);
+
+        // horizontalStart = null;
+        // horizontalEnd = null;
+
+        // diagonalStart = null;
+        // diagonalEnd = null;
+
+        return;
+      }
+
       // Starting from first brick,
       // extrapolate to all brick center pts
 
