@@ -155,17 +155,11 @@ function BrickMapper(stageDiv) {
 
   this.load = function() {
 
+    console.log('loading previous data...');
+
     var loadObj = JSON.parse(localStorage.getItem(SAVE_KEY));
 
-    /*
-
-    for (var i = 0; i < localStorage.length; i++) {
-        var key = localStorage.key(i);
-        var item = JSON.parse(localStorage.getItem(key));
-        loadedData[key] = item;
-      }
-
-    */
+    console.log(loadObj);
 
     brickWidth = loadObj.brickWidth;
     brickHeight = loadObj.brickHeight;
@@ -173,7 +167,17 @@ function BrickMapper(stageDiv) {
     intervalY = loadObj.intervalY;
     rowOffset = loadObj.rowOffset;
 
-    console.log('loadObj', loadObj);
+    horizontalStart = loadObj.horizontalStart;
+    horizontalEnd = loadObj.horizontalEnd;
+    horizontalNumPts = loadObj.horizontalNumPts;
+
+    diagonalStart = loadObj.diagonalStart;
+    diagonalEnd = loadObj.diagonalEnd;
+    diagonalNumPts = loadObj.diagonalNumPts;
+
+    brickPoints = loadObj.brickPoints;
+
+    drawUI();
 
   };
 
@@ -188,13 +192,19 @@ function BrickMapper(stageDiv) {
       intervalX: intervalX,
       intervalY: intervalY,
       rowOffset: rowOffset,
-      allBricks: allBricks,
+      horizontalStart: horizontalStart,
+      horizontalEnd: horizontalEnd,
+      horizontalNumPts: horizontalNumPts,
+      diagonalStart: diagonalStart,
+      diagonalEnd: diagonalEnd,
+      diagonalNumPts: diagonalNumPts,
+      brickPoints: brickPoints,
 
     };
 
-    console.log('==== ALL BRICKS ====');
-    console.log(allBricks);
-    console.log('==== END BRICKS ====');
+    // console.log('==== ALL BRICKS ====');
+    // console.log(allBricks);
+    // console.log('==== END BRICKS ====');
 
     // console.log(boundsBricks);
 
@@ -418,7 +428,7 @@ function BrickMapper(stageDiv) {
     clearCanvas();
 
     if (editMode && mouseIsDown) {
-      console.log('drawing level tiles', levelBricks.length);
+      // console.log('drawing level tiles', levelBricks.length);
     } else {
       // Reset to be filled anew...
       allBricks = [];

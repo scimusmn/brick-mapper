@@ -17,8 +17,14 @@
 
       var brickMapper = new BrickMapper($('body'));
       brickMapper.enable();
-      // brickMapper.load();
 
+      $( "body" ).keypress((evt) => {
+        console.log( "Handler for .keypress() called.",evt.which );
+        if (evt.which == 108){
+          console.log('Keypress LOAD');
+          brickMapper.load();
+        }
+      });
 
     });
 
